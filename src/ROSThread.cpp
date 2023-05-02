@@ -593,7 +593,7 @@ ROSThread::RadarpolarThread()
         string current_radarpolar_name = data_folder_path_ + "/sensor_data/radar/polar" + "/" + to_string(data) + ".png";
 
         cv::Mat radarpolar_image;
-        radarpolar_image = imread(current_radarpolar_name, CV_LOAD_IMAGE_GRAYSCALE);
+        radarpolar_image = imread(current_radarpolar_name, IMREAD_GRAYSCALE);
         if(!radarpolar_image.empty())
         {
 
@@ -615,7 +615,7 @@ ROSThread::RadarpolarThread()
         string next_radarpolar_name = data_folder_path_ + "/radar/polar" +"/"+ radarpolar_file_list_[current_img_index+1];
 
         cv::Mat radarpolar_image;
-        radarpolar_image = imread(next_radarpolar_name, CV_LOAD_IMAGE_COLOR);
+        radarpolar_image = imread(next_radarpolar_name, IMREAD_COLOR);
 
         if(!radarpolar_image.empty())
         {
@@ -738,6 +738,121 @@ void ROSThread::SaveRosbag()
     auto msg = radarpolar_out_msg.toImageMsg();
     bag.write("/Navtech/Polar", msg->header.stamp, *msg);
   }
+
+  ////////////////////// OPEN LIDAR SCAN FILE ///////////////////////
+
+  cout<<"Found: "<<ouster_file_list_.size()<<" LiDAR scan"<<endl;
+  int count_lidar = 1;
+  for(auto && file_name : ouster_file_list_){
+
+    pcl::PointCloud<PointXYZIRT> cloud;
+    cloud.clear();
+    const std::string file_path = data_folder_path_ + "/sensor_data/Ouster/" + file_name;
+    cout<<"lidar: "<<count_lidar++<<"/"<<ouster_file_list_.size()<<endl;
+    //cout<<"load ("<<count++<<"/"<<radarpolar_file_list_.size()<<") from: "<<file_path<<endl;
+    // Load data
+    ifstream file;
+    file.open(file_path, ios::in|ios::binary);
+    int k = 0;
+    while(!file.eof()){
+      PointXYZIRT point;
+      file.read(reinterpret_cast<char *>(&point.x), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.y), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.z), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.intensity), sizeof(float));
+      // cout << "x of the point: " << point.x << endl;
+      point.ring = (k%64) + 1 ;
+      k = k+1 ;
+      cloud.points.push_back (point);
+    }
+    file.close();
+
+    size_t lastindex = file_name.find_last_of(".");
+    std::string stamp_str = file_name.substr(0, lastindex);
+    int64_t  stamp_int;
+    std::istringstream ( stamp_str ) >> stamp_int;
+
+    sensor_msgs::PointCloud2 lidar_out_msg;
+    pcl::toROSMsg(cloud, lidar_out_msg);
+    lidar_out_msg.header.stamp.fromNSec(stamp_int);
+    // cout << "point cloud timestamp is: " << lidar_out_msg.header.stamp.sec << ", " << lidar_out_msg.header.stamp.nsec << endl;
+    lidar_out_msg.header.frame_id = "ouster";
+    bag.write("/os1_points", lidar_out_msg.header.stamp, lidar_out_msg);
+  }
+
+  ////////////////////// OPEN IMU FILE ///////////////////////
+  FILE *fp;
+  int64_t stamp;
+  fp = fopen((data_folder_path_+"/sensor_data/xsens_imu.csv").c_str(),"r");
+  double q_x,q_y,q_z,q_w,x,y,z,g_x,g_y,g_z,a_x,a_y,a_z,m_x,m_y,m_z;
+  // irp_sen_msgs::imu imu_data_origin;
+  sensor_msgs::Imu imu_data;
+  sensor_msgs::MagneticField mag_data;
+  imu_data_.clear();
+  mag_data_.clear();
+  // cout << imu_data << endl ;
+  int count_imu = 1;
+  while(1)
+  {
+    // cout << "imu: " << count_imu++ << "/" << imu_data_.size() << endl;
+    int length = fscanf(fp,"%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", \
+                        &stamp,&q_x,&q_y,&q_z,&q_w,&x,&y,&z,&g_x,&g_y,&g_z,&a_x,&a_y,&a_z,&m_x,&m_y,&m_z);
+    if(length != 8 && length != 17)
+      break;
+    if(length == 8)
+    {
+      imu_data.header.stamp.fromNSec(stamp);
+      imu_data.header.frame_id = "imu";
+      imu_data.orientation.x = q_x;
+      imu_data.orientation.y = q_y;
+      imu_data.orientation.z = q_z;
+      imu_data.orientation.w = q_w;
+
+      imu_data_[stamp] = imu_data;
+      imu_data_version_ = 1;
+
+      bag.write("/imu/data_raw", imu_data.header.stamp, imu_data);
+
+    }
+    else if(length == 17)
+    {
+      imu_data.header.stamp.fromNSec(stamp);
+      imu_data.header.frame_id = "imu";
+      imu_data.orientation.x = q_x;
+      imu_data.orientation.y = q_y;
+      imu_data.orientation.z = q_z;
+      imu_data.orientation.w = q_w;
+      imu_data.angular_velocity.x = g_x;
+      imu_data.angular_velocity.y = g_y;
+      imu_data.angular_velocity.z = g_z;
+      imu_data.linear_acceleration.x = a_x;
+      imu_data.linear_acceleration.y = a_y;
+      imu_data.linear_acceleration.z = a_z;
+
+      imu_data.orientation_covariance[0] = 3;
+      imu_data.orientation_covariance[4] = 3;
+      imu_data.orientation_covariance[8] = 3;
+      imu_data.angular_velocity_covariance[0] = 3;
+      imu_data.angular_velocity_covariance[4] = 3;
+      imu_data.angular_velocity_covariance[8] = 3;
+      imu_data.linear_acceleration_covariance[0] = 3;
+      imu_data.linear_acceleration_covariance[4] = 3;
+      imu_data.linear_acceleration_covariance[8] = 3;
+
+      imu_data_[stamp] = imu_data;
+
+      mag_data.magnetic_field.x = m_x;
+      mag_data.magnetic_field.y = m_y;
+      mag_data.magnetic_field.z = m_z;
+      mag_data_[stamp] = mag_data;
+      imu_data_version_ = 2;
+
+      bag.write("/imu/data_raw", imu_data.header.stamp, imu_data);
+    }
+  }
+  cout << "IMU data are recorded" << endl;
+  fclose(fp);
+
   ////////////////////// OPEN GROUND TRUTH FILE /////////////////////
 
   const std::string gt_csv_path = data_folder_path_+ std::string("/global_pose.csv");

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(file_player)
 
-add_definitions(-std=c++11)
+add_definitions(-std=c++14)
 
 if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE release)
@@ -29,6 +29,7 @@ find_package(catkin REQUIRED cmake_modules
 set(CMAKE_AUTOMOC ON)
 
 find_package(Eigen REQUIRED)
+find_package(OpenCV REQUIRED)
 
 #set (CMAKE_PREFIX_PATH /opt/Qt5.6.1/5.6/gcc_64/lib/cmake)
 
@@ -94,6 +95,7 @@ include_directories(
   ${PROJECT_BINARY_DIR}
   include
   ${Eigen_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 
@@ -120,6 +122,7 @@ target_link_libraries(file_player
   GL
   ${BOOST_CUSTOM_LIBS}
   ${Eigen_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 

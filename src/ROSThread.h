@@ -17,8 +17,15 @@
 #include <algorithm>
 #include <ros/ros.h>
 #include <ros/time.h>
-#include <opencv/cv.h>
-#include <opencv/highgui.h>
+//#include <opencv2/cvconfig.h>
+//#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/opencv.hpp>
+////#include <opencv/cv.h>
+////#include <opencv/highgui.h>
+//#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <image_transport/image_transport.h>
@@ -170,6 +177,7 @@ private:
 
     std::vector<string> ouster_file_list_;
     std::vector<string> radarpolar_file_list_;
+    std::vector<string> imu_file_list_;
 
     ros::Timer timer_;
     void TimerCallback(const ros::TimerEvent&);
